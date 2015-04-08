@@ -1,9 +1,6 @@
 $(function() {
 
-	var breakpoints = {};
-
 	var filename = '';
-	var filename_currently_loaded = '';
 	var lineno = 0;
 
 
@@ -38,7 +35,7 @@ $(function() {
 				enableNav(false);
 				$("#listen").removeClass("inactive");
 				$("#listen").text("LISTEN");
-				breakpoints = {};
+				Breakpoints.clear();
 				break;
 		}
 	});
@@ -112,24 +109,54 @@ $(function() {
 		});
 	});
 
+
 	$("body").on("click", ".lineno", function() {
 		var self = $(this);
-		if (self.hasClass("breakpoint")) {
-			run(function() {
-				$("body").trigger("xdebug-breakpoint_remove", {
-					breakpoint_id: self.data("breakpoint_id").substring(1) // remove first letter
-				});
-			});
+		Breakpoints.hideOptions();
+
+		var breakpoint = Breakpoints.getFromLineNo(self.data("lineno"));
+		if (breakpoint) {
+			Breakpoints.showOptions(self.data("lineno"));
 		} else {
 			run(function() {
 				$("body").trigger("xdebug-breakpoint_set", {
-					lineno: self.data("lineno"),
-					type: "line",
-					filename: filename_currently_loaded
+					lineno: self.data("lineno")
 				});
 			});
 		}
 	});
+
+	$("#breakpoint-options-form").on("submit", function(e) {
+		e.preventDefault();
+
+		var operator_val = '>=';
+		$('[name="bp-hit-operator"]').each(function() {
+			if ($(this).prop("checked")) {
+				operator_val = $(this).val();
+			}
+		});
+
+		run(function() {
+			$("body").trigger("xdebug-breakpoint_set", {
+				lineno: Breakpoints.options.breakpoint.lineno,
+				condition: $('[name="breakpoint-condition"]').val(),
+				operator: operator_val,
+				hitValue: $('[name="breakpoint-hit-count"]').val(),
+				breakpointToDelete: Breakpoints.options.breakpoint.id
+			});
+			Breakpoints.hideOptions();
+		});
+	});
+
+	$("#breakpointRemove").on("click", function() {
+		run(function() {
+			$("body").trigger("xdebug-breakpoint_remove", {
+				breakpoint_id: Breakpoints.options.breakpoint.id
+			});
+			Breakpoints.hideOptions();
+		});
+	});
+
 
 	jQuery.expr[":"].containsi = jQuery.expr.createPseudo(function(arg) {
 		return function(elem) {
@@ -227,7 +254,7 @@ $(function() {
 		console.log("[error-on-receive]: " + data.message);
 		if (Config.get("keep_listening")) {
 			$("body").trigger("xdebug-init");
-			clearBreakpoints();
+			Breakpoints.clear();
 		} else {
 			$("body").trigger("xdebug-stop");
 		}
@@ -284,12 +311,12 @@ $(function() {
 				}
 				$("#stack-filenames").html(stack_trace_html);
 
-				if (Global.getBreakpointToDelete()) {
+				if (Breakpoints.getBreakpointToDelete()) {
 					run(function() {
 						$("body").trigger("xdebug-breakpoint_remove", {
-							breakpoint_id: Global.getBreakpointToDelete()
+							breakpoint_id: Breakpoints.getBreakpointToDelete()
 						});
-						Global.clearBreakpointToDelete();
+						Breakpoints.clearBreakpointToDelete();
 					});
 				}
 
@@ -300,29 +327,42 @@ $(function() {
 
 			case "breakpoint_set":
 				var breakpoint_id = $(data.xml).find("response").attr("id");
-				var breakpoint_lineno = data.options.split(" ").pop();
+
+				var breakpoint_condition = '';
+				var matches = data.options.match(/-- (.*)$/);
+				if (matches && matches[1]) {
+					breakpoint_condition = atob(matches[1]);
+				}
+
+				var breakpoint_lineno = '';
+				matches = data.options.match(/-n (\d+)/);
+				if (matches && matches[1]) {
+					breakpoint_lineno = matches[1];
+				}
 
 				if (parseInt(breakpoint_lineno)) {
-					breakpoints["b" + breakpoint_id] = {
-						filename: filename_currently_loaded,
-						lineno: breakpoint_lineno
-					};
-					highlightBreakpoints();
+					Breakpoints.set({
+						id: breakpoint_id,
+						filename: Global.fileNameCurrentlyLoaded,
+						lineno: breakpoint_lineno,
+						condition: breakpoint_condition
+					});
+					Breakpoints.highlight();
 				}
 
 				break;
 
 			case "breakpoint_remove":
 				var breakpoint_id = data.options.split(" ").pop();
-				delete breakpoints["b" + breakpoint_id];
-				highlightBreakpoints();
+				Breakpoints.unset(breakpoint_id);
+				Breakpoints.highlight();
 				break;
 
 			default:
 				if ($(data.xml).find("response").attr("status") == 'stopping') {
 					if (Config.get("keep_listening")) {
 						$("body").trigger("xdebug-init");
-						clearBreakpoints();
+						Breakpoints.clear();
 					} else {
 						$("body").trigger("xdebug-stop");
 					}
@@ -346,7 +386,7 @@ $(function() {
 
 		if (Config.get("source_script")) {
 
-			if (filename_currently_loaded == filename) {
+			if (Global.fileNameCurrentlyLoaded == filename) {
 
 				$(".line-wrapper.active-line").removeClass("active-line");
 				$(".lineno[data-lineno=" + lineno + "]").closest(".line-wrapper").addClass("active-line");
@@ -421,8 +461,8 @@ $(function() {
 			$("#codeview").append(html);
 		}
 
-		filename_currently_loaded = filename;
-		highlightBreakpoints();
+		Global.fileNameCurrentlyLoaded = filename;
+		Breakpoints.highlight();
 		scrollToView();
 		$("body").trigger("refresh-popups");
 	}
@@ -491,23 +531,6 @@ $(function() {
 	}
 
 
-	function highlightBreakpoints() {
-		$(".lineno.breakpoint").removeClass("breakpoint");
-		for (var id in breakpoints) {
-			if (breakpoints.hasOwnProperty(id)) {
-				if (breakpoints[id].filename == filename_currently_loaded) {
-					$(".lineno[data-lineno='" + breakpoints[id].lineno + "']")
-						.addClass("breakpoint")
-						.data("breakpoint_id", id);
-				}
-			}
-		}
-	}
-
-
-	function clearBreakpoints() {
-		breakpoints = {};
-	}
 
 
 	// active_line - native DOM element (not jQuery object)
@@ -554,5 +577,14 @@ $(function() {
 			$(".nav-button").addClass("inactive");
 		}
 	}
+
+
+	$(".popup.user-closable").on("click", function() {
+		$(this).hide();
+	});
+
+	$(".stop-propagation").on("click", function(e) {
+		e.stopPropagation();
+	});
 
 });
