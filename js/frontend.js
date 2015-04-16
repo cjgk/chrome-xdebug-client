@@ -68,25 +68,25 @@ $(function() {
 	/* NAV */
 
 	$("#stepinto").on("click", function() {
-		isInactive($(this)) || run(function() {
+		isInactive($(this)) || Global.run(function() {
 			$("body").trigger("xdebug-step_into");
 		});
 	});
 
 	$("#stepover").on("click", function() {
-		isInactive($(this)) || run(function() {
+		isInactive($(this)) || Global.run(function() {
 			$("body").trigger("xdebug-step_over");
 		});
 	});
 
 	$("#stepout").on("click", function() {
-		isInactive($(this)) || run(function() {
+		isInactive($(this)) || Global.run(function() {
 			$("body").trigger("xdebug-step_out");
 		});
 	});
 
 	$("#run").on("click", function() {
-		isInactive($(this)) || run(function() {
+		isInactive($(this)) || Global.run(function() {
 			$("body").trigger("xdebug-run");
 		});
 	});
@@ -97,14 +97,14 @@ $(function() {
 	});
 
 	$("#listen").on("click", function() {
-		isInactive($(this)) || run(function() {
+		isInactive($(this)) || Global.run(function() {
 			clearCodeView();
 			$("body").trigger("xdebug-listen");
 		});
 	});
 
 	$("#break-on-return").on("click", function() {
-		isInactive($(this)) || run(function() {
+		isInactive($(this)) || Global.run(function() {
 			$("body").trigger("xdebug-breakpoint_set-return");
 		});
 	});
@@ -118,7 +118,7 @@ $(function() {
 		if (breakpoint) {
 			Breakpoints.showOptions(self.data("lineno"));
 		} else {
-			run(function() {
+			Global.run(function() {
 				$("body").trigger("xdebug-breakpoint_set", {
 					lineno: self.data("lineno")
 				});
@@ -136,7 +136,7 @@ $(function() {
 			}
 		});
 
-		run(function() {
+		Global.run(function() {
 			$("body").trigger("xdebug-breakpoint_set", {
 				lineno: Breakpoints.options.breakpoint.lineno,
 				condition: $('[name="breakpoint-condition"]').val(),
@@ -149,7 +149,7 @@ $(function() {
 	});
 
 	$("#breakpointRemove").on("click", function() {
-		run(function() {
+		Global.run(function() {
 			$("body").trigger("xdebug-breakpoint_remove", {
 				breakpoint_id: Breakpoints.options.breakpoint.id
 			});
@@ -264,6 +264,7 @@ $(function() {
 	$("body").on('parse-xml', function(event, data) {
 
 		Alert.hide();
+		Breakpoints.hideOptions();
 
 		switch (data.command) { /* SWITCH - START */
 
@@ -290,7 +291,7 @@ $(function() {
 
 				populateCodeView(sourceCode, offset);
 
-				run(function() {
+				Global.run(function() {
 					$("body").trigger("xdebug-stack_get");
 				});
 				break;
@@ -311,15 +312,6 @@ $(function() {
 				}
 				$("#stack-filenames").html(stack_trace_html);
 
-				if (Breakpoints.getBreakpointToDelete()) {
-					run(function() {
-						$("body").trigger("xdebug-breakpoint_remove", {
-							breakpoint_id: Breakpoints.getBreakpointToDelete()
-						});
-						Breakpoints.clearBreakpointToDelete();
-					});
-				}
-
 				break;
 
 			case "stop":
@@ -328,24 +320,24 @@ $(function() {
 			case "breakpoint_set":
 				var breakpoint_id = $(data.xml).find("response").attr("id");
 
-				var breakpoint_condition = '';
+				var bpCondition = '';
 				var matches = data.options.match(/-- (.*)$/);
 				if (matches && matches[1]) {
-					breakpoint_condition = atob(matches[1]);
+					bpCondition = atob(matches[1]);
 				}
 
-				var breakpoint_lineno = '';
-				matches = data.options.match(/-n (\d+)/);
-				if (matches && matches[1]) {
-					breakpoint_lineno = matches[1];
-				}
+				var bpLineNo = Global.getOptFromString("n", data.options);
+				var bpHitValue = Global.getOptFromString("h", data.options);
+				var bpOperator = Global.getOptFromString("o", data.options);
 
-				if (parseInt(breakpoint_lineno)) {
+				if (parseInt(bpLineNo)) {
 					Breakpoints.set({
 						id: breakpoint_id,
 						filename: Global.fileNameCurrentlyLoaded,
-						lineno: breakpoint_lineno,
-						condition: breakpoint_condition
+						lineno: bpLineNo,
+						condition: bpCondition,
+						hitValue: bpHitValue,
+						operator: bpOperator
 					});
 					Breakpoints.highlight();
 				}
@@ -417,7 +409,7 @@ $(function() {
 					},
 
 					complete: function() {
-						run(function() {
+						Global.run(function() {
 							$("body").trigger("xdebug-stack_get");
 						});
 					}
@@ -428,7 +420,7 @@ $(function() {
 
 		} else {
 
-			run(function() {
+			Global.run(function() {
 				$("body").trigger("xdebug-source", {
 					filename: filename,
 					lineno: lineno
@@ -519,17 +511,6 @@ $(function() {
 
 		return output;
 	}
-
-
-	function run(callback) {
-		if (Global.isProcessing()) {
-			return;
-		} else {
-			Alert.busy("Working...");
-			callback();
-		}
-	}
-
 
 
 

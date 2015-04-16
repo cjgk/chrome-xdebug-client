@@ -5,6 +5,15 @@ var Global = (function() {
 
 	var publicMethods = {
 
+		run: function(callback) {
+			if (this.isProcessing()) {
+				return;
+			} else {
+				Alert.busy("Working...");
+				callback();
+			}
+		},
+
 		isProcessing: function() {
 			return isProcessing;
 		},
@@ -19,7 +28,17 @@ var Global = (function() {
 			$("#processing-indicator").removeClass("busy");
 		},
 
-		fileNameCurrentlyLoaded: ''
+		fileNameCurrentlyLoaded: '',
+
+		getOptFromString: function(option, string) {
+			var value = '';
+			var matches = string.match(new RegExp(" -" + option + " ([^\\s]+)"));
+			if (matches && matches[1]) {
+				value = matches[1];
+			}
+
+			return value;
+		}
 
 	}
 

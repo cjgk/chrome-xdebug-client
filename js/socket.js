@@ -350,9 +350,7 @@ $(function() {
 				var function_name = "";
 				if (object.class) { function_name += object.class + "::"; }
 				function_name += object.function;
-				send_command("breakpoint_set", "-t return -m " + function_name, function(breakpoint_data) {
-					var breakpoint_id = $(breakpoint_data).find("response").attr("id");
-					Breakpoints.addBreakpointToDelete(breakpoint_id);
+				send_command("breakpoint_set", "-t return -r 1 -m " + function_name, function() {
 					send_command("run");
 				});
 			} else {

@@ -1,7 +1,6 @@
 var Breakpoints = (function() {
 
 	var store = {};
-	var breakpointToDelete = false;
 
 	var publicMethods = {
 
@@ -16,7 +15,9 @@ var Breakpoints = (function() {
 						id: id.substring(1),
 						filename: store[id].filename,
 						lineno: store[id].lineno,
-						condition: store[id].condition
+						condition: store[id].condition,
+						hitValue: store[id].hitValue,
+						operator: store[id].operator
 					}
 				}
 			}
@@ -30,7 +31,9 @@ var Breakpoints = (function() {
 			store["b" + data.id] = {
 				filename: data.filename,
 				lineno: data.lineno,
-				condition: data.condition
+				condition: data.condition,
+				hitValue: data.hitValue,
+				operator: data.operator
 			};
 		},
 
@@ -60,25 +63,17 @@ var Breakpoints = (function() {
 			this.options.breakpoint = this.getFromLineNo(lineNo);
 			$("#breakpoint-condition").val(this.options.breakpoint.condition);
 			$("#breakpoint-condition").trigger("focus");
-			$("#breakpoint-options-form span.breakpoint-id").text("[" + this.options.breakpoint.id + "]");
+			$("#breakpoint-options-form span.breakpoint-id")
+				.text("[" + this.options.breakpoint.id + "]");
+			$("[name=bp-hit-operator][value='" + this.options.breakpoint.operator + "']")
+				.prop("checked", true);
+			$("#breakpoint-hit-count").val(this.options.breakpoint.hitValue);
 			$("#breakpointOptions").show();
 		},
 
 		hideOptions: function() {
 			$("#breakpointRemove").data("id", "");
 			$("#breakpointOptions").hide();
-		},
-
-		addBreakpointToDelete: function(breakpointId) {
-			breakpointToDelete = breakpointId;
-		},
-
-		getBreakpointToDelete: function() {
-			return breakpointToDelete;
-		},
-
-		clearBreakpointToDelete: function() {
-			breakpointToDelete = false;
 		}
 
 	}
